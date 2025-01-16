@@ -1,6 +1,7 @@
 // deno-lint-ignore-file no-explicit-any
 
-type Procedure = (...args: any[]) => any;
+/** generic function */
+export type Procedure = (...args: any[]) => any;
 
 type Methods<T> = keyof {
 	[K in keyof T as T[K] extends Procedure ? K : never]: T[K];
@@ -17,16 +18,17 @@ type Classes<T> =
 	& (string | symbol);
 
 /** generic type that represents a middleware function */
-type Middleware<TParams extends any[], TReturn> = (
+export type Middleware<TParams extends any[], TReturn> = (
 	...params: [...TParams, next: (...params: TParams) => TReturn]
 ) => TReturn;
 
 /** infers the shape of a `next` function from a middleware */
-type MiddlewareNext<T> = T extends Middleware<infer TParams, infer TReturn> ? (...params: TParams) => TReturn
+export type MiddlewareNext<T> = T extends Middleware<infer TParams, infer TReturn>
+	? (...params: TParams) => TReturn
 	: never;
 
 /** represents a middleware for procedure patches */
-type PatchMiddleware<T extends Procedure = Procedure> = Middleware<
+export type PatchMiddleware<T extends Procedure = Procedure> = Middleware<
 	[thisArg: ThisParameterType<T>, args: Parameters<T>],
 	ReturnType<T>
 >;
@@ -35,7 +37,7 @@ type PatchMiddleware<T extends Procedure = Procedure> = Middleware<
  * represents a patching interface for modifying the behavior of a function or method.
  * @template T the function being patched
  */
-interface PatchInstance<T extends Procedure = Procedure> {
+export interface PatchInstance<T extends Procedure = Procedure> {
 	/**
 	 * adds a middleware into the patch
 	 * @param fn middleware function
@@ -66,49 +68,93 @@ interface PatchInstance<T extends Procedure = Procedure> {
 const patches = new WeakMap<Procedure, PatchInstance>();
 
 /**
- * creates a patch for a property getter, method, or constructor of an object
+ * creates a patch for a property getter
  *
  * @template T object being patched
- * @template K property name of a method/property being patched
+ * @template K property name of a function being patched
  *
- * @param obj object to patch
- * @param name property name of a method/property to patch
- * @param type on properties, which part of the accessor to patch (getter/setter)
+ * @param obj object that the property resides in
+ * @param propertyName name of property getter
+ * @param accessType accessor type (getter)
  *
- * @returns a PatchInstance for managing patches
+ * @returns a PatchInstance object for managing patches
  *
  * @example
- *
- * // patching properties/accessors
+ * ```ts
  * const patcher = patch(Response.prototype, 'body', 'get');
  *
- * // patching methods
- * const patcher = patch(Response.prototype, 'json');
- *
- * // adding a middleware
  * patcher.hook((thisArg, args, next) => {
- *   console.log('before call');
- *   const result = next(thisArg, args);
- *   console.log('after method call');
+ *   const result = next();
+ *
+ *   // do something with `body`
+ *
  *   return result;
  * });
+ * ```
  */
 export function patch<T, S extends Properties<Required<T>>>(
 	obj: T,
 	propertyName: S,
 	accessType: 'get',
 ): PatchInstance<() => T[S]>;
+
+/**
+ * creates a patch for a property setter
+ *
+ * @template T object being patched
+ * @template K property name of a function being patched
+ *
+ * @param obj object that the property resides in
+ * @param propertyName name of property setter
+ * @param accessType accessor type (setter)
+ *
+ * @returns a PatchInstance object for managing patches
+ *
+ * @example
+ * ```ts
+ * const patcher = patch(object, 'body', 'set');
+ *
+ * patcher.hook((thisArg, args) => {
+ *   console.log(`setter called`)
+ * })
+ * ```
+ */
 export function patch<T, G extends Properties<Required<T>>>(
 	obj: T,
 	propertyName: G,
 	accessType: 'set',
 ): PatchInstance<(arg: T[G]) => void>;
+
+/**
+ * creates a patch for a method or constructor
+ *
+ * @template T object being patched
+ * @template K property name of a method/constructor being patched
+ *
+ * @param obj object that the method or constructor resides in
+ * @param methodName name of method or constructor function
+ *
+ * @returns a PatchInstance object for managing patches
+ *
+ * @example
+ * ```ts
+ * const patcher = patch(Response.prototype, 'json');
+ *
+ * patcher.hook((thisArg, args, next) => {
+ *   console.log('before call');
+ *   const result = next(thisArg, args);
+ *   console.log('after method call');
+ *   return result;
+ * });
+ * ```
+ */
 export function patch<T, M extends Classes<Required<T>> | Methods<Required<T>>>(
 	obj: T,
 	methodName: M,
 ): Required<T>[M] extends { new (...args: infer A): infer R } ? PatchInstance<(this: R, ...args: A) => R>
 	: T[M] extends Procedure ? PatchInstance<T[M]>
 	: never;
+
 export function patch<T, K extends keyof T>(
 	obj: T,
 	name: K,
