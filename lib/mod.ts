@@ -195,7 +195,7 @@ export function patch<T, K extends keyof T>(
 		},
 		apply(target, thisArg, args) {
 			if (runApply === null) {
-				return insteadFn ? insteadFn(thisArg, args) : Reflect.construct(target, args);
+				return insteadFn ? insteadFn(thisArg, args) : Reflect.apply(target, thisArg, args);
 			}
 
 			if (runApply === undefined) {
